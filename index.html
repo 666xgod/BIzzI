@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>БИззИ — Сервис поиска</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js"></script>
+    <style>
+        :root { --red: #ff6b6b; --teal: #4ecdc4; --bg: #f5f6fa; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 15px; display: flex; justify-content: center; }
+        .card { max-width: 450px; width: 100%; background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: var(--red); margin-top: 0; }
+        .field { margin-bottom: 15px; }
+        label { display: block; font-size: 12px; color: #777; margin-bottom: 5px; }
+        input, textarea { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 16px; transition: 0.3s; }
+        .btn-save { background: var(--teal); color: white; }
+        .btn-call { background: var(--red); color: white; text-decoration: none; display: block; text-align: center; }
+        #profile-view, #result-step { display: none; text-align: center; }
+        .dog-img { width: 100%; border-radius: 20px; margin-bottom: 15px; background: #eee; border: 3px solid var(--teal); }
+        .url-res { word-break: break-all; font-size: 12px; background: #e3f2fd; padding: 15px; border-radius: 10px; border: 1px solid #90caf9; margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="create-step">
+        <h1>🐾 БИззИ</h1>
+        <div class="field"><input type="text" id="name" placeholder="Кличка собаки"></div>
+        <div class="field"><input type="tel" id="phone" placeholder="Телефон хозяина (+7...)"></div>
+        <div class="field"><textarea id="features" placeholder="Особые приметы (пятна, ошейник...)"></textarea></div>
+        <div class="field">
+            <label>Фото питомца:</label>
+            <input type="file" id="photo" accept="image/*">
+        </div>
+        <button class="btn btn-save" id="btn" onclick="saveData()">Создать БИззИ-профиль</button>
+    </div>
+
+    <div id="result-step">
+        <h2>Ура! Профиль готов 🎉</h2>
+        <p>Эту ссылку нужно записать на NFC-тег:</p>
+        <div id="link" class="url-res"></div>
+        <button class="btn" style="background:#eee" onclick="location.search=''">Создать ещё один</button>
+    </div>
+
+    <div id="profile-view">
+        <h2 id="out-name" style="margin-bottom:10px; color:var(--red)"></h2>
+        <img id="out-photo" class="dog-img">
+        <p id="out-features" style="text-align: left; background:#f9f9f9; padding:10px; border-radius:10px;"></p>
+        <a href="" id="out-phone" class="btn btn-call">📞 ПОЗВОНИТЬ ХОЗЯИНУ</a>
+        <button class="btn" style="background:#0088cc; color:white;" onclick="sendGeo()">📍 ОТПРАВИТЬ ГЕОПОЗИЦИЮ</button>
+    </div>
+</div>
+
+<script>
+    // --- ВСТАВЬ СВОЙ КОНФИГ НИЖЕ ---
+    const firebaseConfig = {
+        apiKey: "ТВОЙ_API_KEY",
+        authDomain: "bizzi-ecece.firebaseapp.com",
+        projectId: "bizzi-ecece",
+        storageBucket: "bizzi-ecece.firebasestorage.app",
+        messagingSenderId: "452376250717",
+        appId: "1:452376250717:web:c9f1cef7b9c2fe828340b4",
+        measurementId: "G-Z2YM1CWCS6"
+    };
+    // --------------------------------
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    async function saveData() {
+        const file = document.getElementById('photo').files[0];
+        const name = document.getElementById('name').value;
+        const phone = document.getElementById('phone').value;
+
+        if (!name || !phone || !file) return alert("Заполни имя, телефон и выбери фото!");
+        
+        const btn = document.getElementById('btn');
+        btn.innerText = "Загрузка в облако...";
+        btn.disabled = true;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                const max = 400; 
+                let w = img.width, h = img.height;
+                if (w > h) { h *= max/w; w = max; } else { w *= max/h; h = max; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                
+                const photoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+                try {
+                    const doc = await db.collection("dogs").add({
+                        n: name,
+                        p: phone,
+                        f: document.getElementById('features').value,
+                        i: photoBase64,
+                        t: Date.now()
+                    });
+
+                    document.getElementById('create-step').style.display = 'none';
+                    document.getElementById('result-step').style.display = 'block';
+                    document.getElementById('link').innerText = window.location.origin + window.location.pathname + "?id=" + doc.id;
+                } catch (err) {
+                    alert("Ошибка: " + err.message);
+                    btn.disabled = false;
+                    btn.innerText = "Попробовать снова";
+                }
+            };
+        };
+        reader.readAsDataURL(file);
+    }
+
+    window.onload = async () => {
+        const id = new URLSearchParams(window.location.search).get('id');
+        if (id) {
+            const doc = await db.collection("dogs").doc(id).get();
+            if (doc.exists) {
+                const data = doc.data();
+                document.getElementById('create-step').style.display = 'none';
+                document.getElementById('profile-view').style.display = 'block';
+                document.getElementById('out-name').innerText = "Найден: " + data.n;
+                document.getElementById('out-features').innerText = "Особые приметы: " + (data.f || "нет");
+                document.getElementById('out-photo').src = data.i;
+                document.getElementById('out-phone').href = "tel:" + data.p;
+                window.ownerPhone = data.p;
+            } else {
+                alert("Профиль не найден!");
+            }
+        }
+    };
+
+    function sendGeo() {
+        navigator.geolocation.getCurrentPosition(p => {
+            const map = `https://www.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}`;
+            const msg = encodeURIComponent("Я нашел вашу собаку! Мое местоположение: " + map);
+            window.location.href = `https://t.me/+${window.ownerPhone.replace(/\D/g,'')}?text=${msg}`;
+        }, () => alert("Включите доступ к GPS"));
+    }
+</script>
+</body>
+</html>
