@@ -44,9 +44,9 @@
 
     <div id="result-step">
         <h2 style="text-align:center">Готово! 🎉</h2>
-        <p>Скопируйте ссылку и используйте её для NFC или QR-кода:</p>
+        <p>Ссылка для QR-кода или NFC:</p>
         <div id="link" class="url-res"></div>
-        <button class="btn" style="background:#eee" onclick="location.reload()">Создать ещё один</button>
+        <button class="btn" style="background:#eee" onclick="location.reload()">Создать еще один</button>
     </div>
 
     <div id="profile-view">
@@ -61,23 +61,97 @@
 </div>
 
 <script>
-    // --- КОНФИГ FIREBASE (Вставь свои данные) ---
+    // Твой конфиг из скриншота
     const firebaseConfig = {
-        apiKey: "AIzaSyAisVh4Y2P31NlklU4pfTTHbPTlDd5CIMA",
+        apiKey: "AIzaSyAisVh4Y2P31Nlk1U4pFTTHbPT1Dd5CIMA",
         authDomain: "bizzi-ecece.firebaseapp.com",
+        databaseURL: "https://bizzi-ecece-default-rtdb.europe-west1.firebasedatabase.app",
         projectId: "bizzi-ecece",
         storageBucket: "bizzi-ecece.firebasestorage.app",
         messagingSenderId: "452376250717",
-        appId: "1:452376250717:web:c9f1cef7b9c2fe828340b4"
+        appId: "1:452376250717:web:c9f1cef7b9c2fe828340b4",
+        measurementId: "G-Z2YM1GWCS6"
     };
-    // --------------------------------------------
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Сохранение данных
     async function saveData() {
         const name = document.getElementById('name').value;
         const phone = document.getElementById('phone').value;
         const email = document.getElementById('email').value;
-        const file =
+        const file = document.getElementById('photo').files[0];
+        const features = document.getElementById('features').value;
+
+        if (!name || !phone || !email || !file) return alert("Заполните все поля и выберите фото!");
+
+        const btn = document.getElementById('btn-save');
+        btn.innerText = "Сохранение...";
+        btn.disabled = true;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                const max = 500; 
+                let w = img.width, h = img.height;
+                if (w > h) { h *= max/w; w = max; } else { w *= max/h; h = max; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                const photoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+
+                try {
+                    const doc = await db.collection("dogs").add({
+                        n: name,
+                        p: phone,
+                        e: email,
+                        f: features,
+                        i: photoBase64,
+                        t: Date.now()
+                    });
+                    document.getElementById('create-step').style.display = 'none';
+                    document.getElementById('result-step').style.display = 'block';
+                    document.getElementById('link').innerText = window.location.origin + window.location.pathname + "?id=" + doc.id;
+                } catch (err) {
+                    alert("Ошибка Firebase: " + err.message);
+                    btn.disabled = false;
+                    btn.innerText = "Создать QR-профиль";
+                }
+            };
+        };
+        reader.readAsDataURL(file);
+    }
+
+    window.onload = async () => {
+        const id = new URLSearchParams(window.location.search).get('id');
+        if (id) {
+            const doc = await db.collection("dogs").doc(id).get();
+            if (doc.exists) {
+                const data = doc.data();
+                document.getElementById('create-step').style.display = 'none';
+                document.getElementById('profile-view').style.display = 'block';
+                document.getElementById('out-name').innerText = "Найден: " + data.n;
+                document.getElementById('out-features').innerText = data.f || "не указаны";
+                document.getElementById('out-photo').src = data.i;
+                document.getElementById('out-phone').href = "tel:" + data.p;
+                window.ownerEmail = data.e;
+            }
+        }
+    };
+
+    function sendEmail() {
+        if (!window.ownerEmail) return alert("Email владельца не найден");
+        navigator.geolocation.getCurrentPosition(p => {
+            const lat = p.coords.latitude;
+            const lon = p.coords.longitude;
+            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
+            const subject = encodeURIComponent("Найдена ваша собака!");
+            const body = encodeURIComponent(`Здравствуйте! Я нашел вашу собаку. Мое местоположение на карте: ${mapLink}`);
+            window.location.href = `mailto:${window.ownerEmail}?subject=${subject}&body=${body}`;
+        }, () => alert("Пожалуйста, включите GPS, чтобы отправить координаты владельцу."));
+    }
+</script>
+</body>
+</html>
