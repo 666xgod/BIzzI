@@ -61,7 +61,6 @@
 </div>
 
 <script>
-    // Твой конфиг из скриншота
     const firebaseConfig = {
         apiKey: "AIzaSyAisVh4Y2P31Nlk1U4pFTTHbPT1Dd5CIMA",
         authDomain: "bizzi-ecece.firebaseapp.com",
@@ -83,7 +82,7 @@
         const file = document.getElementById('photo').files[0];
         const features = document.getElementById('features').value;
 
-        if (!name || !phone || !email || !file) return alert("Заполните все поля и выберите фото!");
+        if (!name || !phone || !email || !file) return alert("Заполните все поля!");
 
         const btn = document.getElementById('btn-save');
         btn.innerText = "Сохранение...";
@@ -104,18 +103,13 @@
 
                 try {
                     const doc = await db.collection("dogs").add({
-                        n: name,
-                        p: phone,
-                        e: email,
-                        f: features,
-                        i: photoBase64,
-                        t: Date.now()
+                        n: name, p: phone, e: email, f: features, i: photoBase64, t: Date.now()
                     });
                     document.getElementById('create-step').style.display = 'none';
                     document.getElementById('result-step').style.display = 'block';
                     document.getElementById('link').innerText = window.location.origin + window.location.pathname + "?id=" + doc.id;
                 } catch (err) {
-                    alert("Ошибка Firebase: " + err.message);
+                    alert("Ошибка: " + err.message);
                     btn.disabled = false;
                     btn.innerText = "Создать QR-профиль";
                 }
@@ -142,15 +136,21 @@
     };
 
     function sendEmail() {
-        if (!window.ownerEmail) return alert("Email владельца не найден");
+        if (!window.ownerEmail) return alert("Email не найден");
+        
         navigator.geolocation.getCurrentPosition(p => {
             const lat = p.coords.latitude;
             const lon = p.coords.longitude;
-            const mapLink = `https://www.google.com/maps?q=${lat},${lon}`;
-            const subject = encodeURIComponent("Найдена ваша собака!");
-            const body = encodeURIComponent(`Здравствуйте! Я нашел вашу собаку. Мое местоположение на карте: ${mapLink}`);
-            window.location.href = `mailto:${window.ownerEmail}?subject=${subject}&body=${body}`;
-        }, () => alert("Пожалуйста, включите GPS, чтобы отправить координаты владельцу."));
+            const mapLink = "https://www.google.com/maps?q=" + lat + "," + lon;
+            
+            const subject = encodeURIComponent("Найдена собака!");
+            const body = encodeURIComponent("Здравствуйте! Я нашел вашу собаку. Мое местоположение: " + mapLink);
+            
+            window.location.href = "mailto:" + window.ownerEmail + "?subject=" + subject + "&body=" + body;
+        }, (err) => {
+            console.error(err);
+            alert("Нужно разрешить доступ к GPS в настройках браузера!");
+        });
     }
 </script>
 </body>
